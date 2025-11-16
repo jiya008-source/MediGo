@@ -17,8 +17,32 @@ const port = process.env.PORT || 4000;
 connectDB(); // connect to MongoDB
 connectCloudinary(); // your cloudinary setup
 
+// CORS configuration - must be before other middleware
+const allowedOrigins = [
+  "https://medi-go-two.vercel.app",     // your frontend
+  "http://localhost:3000",              // local development
+  "http://localhost:5173",              // Vite default port
+  "http://localhost:5175"               // Vite configured port
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: "GET,POST,PUT,PATCH,DELETE",
+    allowedHeaders: "Content-Type,Authorization",
+    credentials: true,
+  })
+);
+
+app.options("*", cors()); // handle preflight
+
 app.use(express.json());
-app.use(cors());
 
 app.use('/api/admin', adminRouter);
 app.use('/api/doctor', doctorRouter);
@@ -31,3 +55,10 @@ app.get('/', (req, res) => {
 });
 
 app.listen(port, () => console.log(`🚀 Server started on port ${port}`));
+
+
+
+
+            // local development
+
+
