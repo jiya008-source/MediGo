@@ -130,13 +130,27 @@ const Chatbot = () => {
     setMessages(prev => [...prev, { type: 'user', text: userMessage }])
     setIsLoading(true)
 
+    // Check if backendUrl is configured
+    if (!backendUrl) {
+      console.error('ERROR: backendUrl is undefined!')
+      setMessages(prev => [...prev, {
+        type: 'bot',
+        text: 'Configuration error: Backend URL is not set. Please check your environment variables.'
+      }])
+      setIsLoading(false)
+      toast.error('Backend URL not configured')
+      return
+    }
+
     try {
       // Call new AI diagnosis API
-      const { data } = await axios.post(backendUrl + '/api/ai/diagnose', {
+      const response = await axios.post(`${backendUrl}/api/ai/diagnose`, {
         symptoms: userMessage
       })
 
-      if (data.success && data.data) {
+      const { data } = response
+
+      if (data && data.success && data.data) {
         const { condition, specialization, advice, confidence } = data.data
         
         // Format bot response
@@ -149,23 +163,31 @@ const Chatbot = () => {
 
         setMessages(prev => [...prev, { type: 'bot', text: botMessage }])
         
-        // Get doctors matching the specialization
-        const matchingDoctors = (doctors || []).filter(doc => 
-          doc.speciality === specialization || 
-          doc.speciality === 'General physician' || 
-          specialization === 'General physician'
-        ).slice(0, 5)
+        // Get doctors matching the specialization (case-insensitive)
+        const matchingDoctors = (doctors || []).filter(doc => {
+          const docSpeciality = (doc.speciality || '').trim()
+          const targetSpeciality = (specialization || '').trim()
+          return docSpeciality.toLowerCase() === targetSpeciality.toLowerCase()
+        }).slice(0, 5)
 
-        setSuggestedDoctors(matchingDoctors)
+        // If no exact match, show General physicians as fallback
+        const doctorsToShow = matchingDoctors.length > 0 
+          ? matchingDoctors 
+          : (doctors || []).filter(doc => {
+              const docSpeciality = (doc.speciality || '').trim().toLowerCase()
+              return docSpeciality === 'general physician'
+            }).slice(0, 5)
 
-        if (matchingDoctors.length > 0) {
+        setSuggestedDoctors(doctorsToShow)
+
+        if (doctorsToShow.length > 0) {
           // Add doctor suggestions
-          matchingDoctors.forEach((doctor, index) => {
+          doctorsToShow.forEach((doctor, index) => {
             setTimeout(() => {
               setMessages(prev => [...prev, {
                 type: 'doctor',
                 doctor: doctor,
-                text: `${doctor.name} - ${doctor.speciality}\n${doctor.speciality === specialization ? 'Perfect match for your condition' : 'Recommended doctor'}${doctor.experience ? ` • ${doctor.experience} years experience` : ''}`
+                text: `${doctor.name} - ${doctor.speciality}\n${doctor.speciality?.toLowerCase() === specialization?.toLowerCase() ? 'Perfect match for your condition' : 'Recommended doctor'}${doctor.experience ? ` • ${doctor.experience} years experience` : ''}`
               }])
             }, (index + 1) * 300)
           })
@@ -178,17 +200,19 @@ const Chatbot = () => {
       } else {
         setMessages(prev => [...prev, {
           type: 'bot',
-          text: data.message || 'I apologize, but I couldn\'t process your symptoms. Please try describing them differently or consult a General Physician.'
+          text: data?.message || 'I apologize, but I couldn\'t process your symptoms. Please try describing them differently or consult a General Physician.'
         }])
-        toast.error(data.message || 'Failed to get diagnosis')
+        toast.error(data?.message || 'Failed to get diagnosis')
       }
     } catch (error) {
-      console.error('Error:', error)
+      console.error('API Error Details:', error)
+      console.error('Error Response:', error.response?.data)
+      console.error('Error Status:', error.response?.status)
       setMessages(prev => [...prev, {
         type: 'bot',
         text: `Sorry, I encountered an error: ${error.response?.data?.message || error.message || 'Unknown error'}. Please try again or consult a doctor directly.`
       }])
-      toast.error(error.response?.data?.message || 'Error processing symptoms')
+      toast.error(error.response?.data?.message || error.message || 'Error processing symptoms')
     } finally {
       setIsLoading(false)
     }
