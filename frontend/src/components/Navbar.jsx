@@ -21,6 +21,7 @@ const Navbar = () => {
       <ul className='hidden md:flex items-start gap-5 font-medium'>
         <NavLink to='/'><li className='py-1'>HOME</li></NavLink>
         <NavLink to='/doctors'><li className='py-1'>ALL DOCTORS</li></NavLink>
+        <NavLink to='/chatbot'><li className='py-1'>AI ASSISTANT</li></NavLink>
         <NavLink to='/about'><li className='py-1'>ABOUT</li></NavLink>
         <NavLink to='/contact'><li className='py-1'>CONTACT</li></NavLink>
       </ul>
@@ -64,6 +65,7 @@ const Navbar = () => {
           <ul className='flex flex-col items-center gap-2 mt-5 px-5 text-lg font-medium'>
             <NavLink onClick={() => setShowMenu(false)} to='/'><p className='px-4 py-2'>HOME</p></NavLink>
             <NavLink onClick={() => setShowMenu(false)} to='/doctors'><p className='px-3 py-3'>ALL DOCTORS</p></NavLink>
+            <NavLink onClick={() => setShowMenu(false)} to='/chatbot'><p className='px-3 py-3'>AI ASSISTANT</p></NavLink>
             <NavLink onClick={() => setShowMenu(false)} to='/about'><p className='px-3 py-3'>ABOUT</p></NavLink>
             <NavLink onClick={() => setShowMenu(false)} to='/contact'><p className='px-3 py-3'>CONTACT</p></NavLink>
           </ul>

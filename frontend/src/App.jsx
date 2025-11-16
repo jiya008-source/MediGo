@@ -12,6 +12,7 @@ import Contact from './pages/Contact';
 import MyProfile from './pages/MyProfile';
 import MyAppointments from './pages/MyAppointments';
 import Appointment from './pages/Appointment';
+import AIChatbot from './pages/AIChatbot';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import Chatbot from './components/Chatbot';
@@ -52,6 +53,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path='/chatbot' element={<AIChatbot />} />
       </Routes>
       <Footer />
       <Chatbot />

@@ -16,7 +16,7 @@ const Chatbot = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [suggestedDoctors, setSuggestedDoctors] = useState([])
   const messagesEndRef = useRef(null)
-  const { backendUrl } = useContext(AppContext)
+  const { backendUrl, doctors } = useContext(AppContext)
   const navigate = useNavigate()
 
   const scrollToBottom = () => {
@@ -28,48 +28,96 @@ const Chatbot = () => {
   }, [messages])
 
   const extractSymptoms = (text) => {
-    // Common symptom keywords
+    // Comprehensive symptom keywords with variations
     const symptomKeywords = [
-      'fever', 'headache', 'cough', 'sore throat', 'runny nose', 'sneezing',
-      'body ache', 'fatigue', 'chills', 'nausea', 'vomiting', 'diarrhea',
-      'stomach pain', 'abdominal pain', 'chest pain', 'shortness of breath',
-      'wheezing', 'rash', 'itching', 'joint pain', 'muscle pain', 'back pain',
-      'dizziness', 'blurred vision', 'ear pain', 'toothache', 'swelling',
-      'bleeding', 'constipation', 'gas', 'bloating', 'indigestion',
-      'sensitivity to light', 'sensitivity to sound', 'nasal congestion',
-      'post nasal drip', 'facial pain', 'neck pain', 'shoulder pain',
-      'phlegm', 'chest tightness', 'stiffness', 'redness', 'dry skin',
-      'scaly patches', 'hives', 'swelling'
+      // Fever and general
+      'fever', 'temperature', 'high temperature', 'chills', 'sweating',
+      // Head and neurological
+      'headache', 'head ache', 'migraine', 'dizziness', 'vertigo',
+      'sensitivity to light', 'sensitivity to sound', 'light sensitivity', 'sound sensitivity',
+      // Respiratory
+      'cough', 'coughing', 'sore throat', 'runny nose', 'sneezing', 'nasal congestion',
+      'post nasal drip', 'shortness of breath', 'breathing difficulty', 'wheezing',
+      'chest pain', 'chest tightness', 'phlegm', 'mucus',
+      // Stomach and digestive
+      'stomach pain', 'abdominal pain', 'belly pain', 'nausea', 'vomiting', 'throwing up',
+      'diarrhea', 'diarrhoea', 'constipation', 'gas', 'bloating', 'indigestion',
+      'heartburn', 'acid reflux', 'right lower abdominal pain',
+      // Skin
+      'rash', 'itching', 'itchy', 'redness', 'swelling', 'hives', 'dry skin',
+      'scaly patches', 'skin infection', 'dermatitis',
+      // Musculoskeletal
+      'joint pain', 'muscle pain', 'back pain', 'neck pain', 'shoulder pain',
+      'stiffness', 'tenderness', 'reduced range of motion',
+      // Other
+      'fatigue', 'tiredness', 'body ache', 'body pain', 'eye pain', 'tearing',
+      'facial pain', 'ear pain', 'toothache', 'bleeding'
     ]
 
     const lowerText = text.toLowerCase()
     const foundSymptoms = []
+    const textWords = lowerText.split(/[,\s.]+/).filter(w => w.length > 2)
 
+    // Direct keyword matching
     symptomKeywords.forEach(symptom => {
-      if (lowerText.includes(symptom)) {
-        foundSymptoms.push(symptom.replace(/\s+/g, '_'))
+      if (lowerText.includes(symptom.toLowerCase())) {
+        const normalized = symptom.replace(/\s+/g, '_')
+        if (!foundSymptoms.includes(normalized)) {
+          foundSymptoms.push(normalized)
+        }
       }
     })
 
-    // Also check for common phrases
-    if (lowerText.includes('i have') || lowerText.includes('i am experiencing') || lowerText.includes('symptoms')) {
-      // Try to extract symptoms from the text
-      const words = text.toLowerCase().split(/[,\s]+/)
-      words.forEach(word => {
-        if (word.length > 3 && !foundSymptoms.includes(word.replace(/\s+/g, '_'))) {
-          // Check if it's a known symptom variation
-          symptomKeywords.forEach(keyword => {
-            if (keyword.includes(word) || word.includes(keyword)) {
-              if (!foundSymptoms.includes(keyword.replace(/\s+/g, '_'))) {
-                foundSymptoms.push(keyword.replace(/\s+/g, '_'))
+    // Extract symptoms from common phrases
+    const symptomPhrases = [
+      { pattern: /i have (.+?)(?:,|\.|$)/gi, extract: true },
+      { pattern: /i'm experiencing (.+?)(?:,|\.|$)/gi, extract: true },
+      { pattern: /i am experiencing (.+?)(?:,|\.|$)/gi, extract: true },
+      { pattern: /symptoms? (?:are|include|is) (.+?)(?:,|\.|$)/gi, extract: true }
+    ]
+
+    symptomPhrases.forEach(({ pattern, extract }) => {
+      const matches = lowerText.matchAll(pattern)
+      for (const match of matches) {
+        if (match[1]) {
+          const symptoms = match[1].split(/[,\s]+and\s+/).map(s => s.trim())
+          symptoms.forEach(symptom => {
+            symptomKeywords.forEach(keyword => {
+              if (symptom.includes(keyword) || keyword.includes(symptom)) {
+                const normalized = keyword.replace(/\s+/g, '_')
+                if (!foundSymptoms.includes(normalized)) {
+                  foundSymptoms.push(normalized)
+                }
               }
-            }
+            })
           })
         }
+      }
+    })
+
+    // If no symptoms found, try to infer from common words
+    if (foundSymptoms.length === 0) {
+      const commonMappings = {
+        'hot': 'fever',
+        'cold': 'cough',
+        'ache': 'body ache',
+        'hurts': 'pain',
+        'sick': 'nausea'
+      }
+      
+      textWords.forEach(word => {
+        Object.entries(commonMappings).forEach(([key, symptom]) => {
+          if (word.includes(key)) {
+            const normalized = symptom.replace(/\s+/g, '_')
+            if (!foundSymptoms.includes(normalized)) {
+              foundSymptoms.push(normalized)
+            }
+          }
+        })
       })
     }
 
-    return foundSymptoms.length > 0 ? foundSymptoms : ['fever'] // Default to fever if no symptoms found
+    return foundSymptoms.length > 0 ? foundSymptoms : []
   }
 
   const handleSendMessage = async () => {
@@ -83,52 +131,64 @@ const Chatbot = () => {
     setIsLoading(true)
 
     try {
-      // Extract symptoms from user message
-      const symptoms = extractSymptoms(userMessage)
-      
-      // Call API to predict disease
-      const { data } = await axios.post(backendUrl + '/api/symptom/predict', {
-        symptoms
+      // Call new AI diagnosis API
+      const { data } = await axios.post(backendUrl + '/api/ai/diagnose', {
+        symptoms: userMessage
       })
 
-      if (data.success) {
-        const { prediction, suggestedDoctors: doctors } = data
+      if (data.success && data.data) {
+        const { condition, specialization, advice, confidence } = data.data
         
-        // Add bot response
-        let botMessage = prediction.message || 'Based on your symptoms, I recommend consulting a doctor.'
-        
-        if (prediction.disease) {
-          botMessage = `Based on your symptoms, you might have **${prediction.disease}** (${prediction.confidence}% confidence).\n\nI recommend consulting a **${prediction.suggestedSpeciality}**.\n\nHere are some available doctors:`
-        }
+        // Format bot response
+        let botMessage = `Based on your symptoms, I've analyzed your condition.\n\n`
+        botMessage += `**Condition:** ${condition}\n`
+        botMessage += `**Recommended Specialization:** ${specialization}\n`
+        botMessage += `**Confidence Level:** ${confidence}\n\n`
+        botMessage += `**Advice:** ${advice}\n\n`
+        botMessage += `Here are the best matching doctors for your condition:`
 
         setMessages(prev => [...prev, { type: 'bot', text: botMessage }])
-        setSuggestedDoctors(doctors || [])
+        
+        // Get doctors matching the specialization
+        const matchingDoctors = (doctors || []).filter(doc => 
+          doc.speciality === specialization || 
+          doc.speciality === 'General physician' || 
+          specialization === 'General physician'
+        ).slice(0, 5)
 
-        if (doctors && doctors.length > 0) {
-          // Add doctor suggestions as messages
-          doctors.forEach((doctor, index) => {
+        setSuggestedDoctors(matchingDoctors)
+
+        if (matchingDoctors.length > 0) {
+          // Add doctor suggestions
+          matchingDoctors.forEach((doctor, index) => {
             setTimeout(() => {
               setMessages(prev => [...prev, {
                 type: 'doctor',
                 doctor: doctor,
-                text: `${doctor.name} - ${doctor.speciality}`
+                text: `${doctor.name} - ${doctor.speciality}\n${doctor.speciality === specialization ? 'Perfect match for your condition' : 'Recommended doctor'}${doctor.experience ? ` • ${doctor.experience} years experience` : ''}`
               }])
             }, (index + 1) * 300)
           })
+        } else {
+          setMessages(prev => [...prev, {
+            type: 'bot',
+            text: 'No doctors found for this speciality. Please try consulting a General Physician or contact support.'
+          }])
         }
       } else {
         setMessages(prev => [...prev, {
           type: 'bot',
-          text: 'I apologize, but I couldn\'t process your symptoms. Please try describing them differently or consult a General Physician.'
+          text: data.message || 'I apologize, but I couldn\'t process your symptoms. Please try describing them differently or consult a General Physician.'
         }])
+        toast.error(data.message || 'Failed to get diagnosis')
       }
     } catch (error) {
       console.error('Error:', error)
       setMessages(prev => [...prev, {
         type: 'bot',
-        text: 'Sorry, I encountered an error. Please try again or consult a doctor directly.'
+        text: `Sorry, I encountered an error: ${error.response?.data?.message || error.message || 'Unknown error'}. Please try again or consult a doctor directly.`
       }])
-      toast.error('Error processing symptoms')
+      toast.error(error.response?.data?.message || 'Error processing symptoms')
     } finally {
       setIsLoading(false)
     }

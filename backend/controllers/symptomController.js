@@ -1,7 +1,7 @@
-import { predictDisease } from '../services/symptomPredictor.js';
+import { predictDiseaseAdvanced, recommendDoctors } from '../services/aiRecommendationSystem.js';
 import doctorModel from '../models/doctorModel.js';
 
-// Predict disease from symptoms and suggest doctors
+// Advanced AI-powered symptom prediction and doctor recommendation
 export const predictFromSymptoms = async (req, res) => {
   try {
     const { symptoms } = req.body;
@@ -13,40 +13,53 @@ export const predictFromSymptoms = async (req, res) => {
       });
     }
 
-    // Predict disease
-    const prediction = predictDisease(symptoms);
+    // Use advanced AI prediction
+    const prediction = predictDiseaseAdvanced(symptoms);
 
-    // Find doctors based on suggested speciality
-    let suggestedDoctors = [];
-    if (prediction.suggestedSpeciality) {
-      suggestedDoctors = await doctorModel.find({
-        speciality: prediction.suggestedSpeciality,
-        available: true
-      }).select(['-password', '-email']).limit(5);
-    }
+    // Get all available doctors
+    const allDoctors = await doctorModel.find({ available: true })
+      .select(['-password', '-email']);
 
-    // If no doctors found for the speciality, get general physicians
-    if (suggestedDoctors.length === 0) {
-      suggestedDoctors = await doctorModel.find({
-        speciality: 'General physician',
-        available: true
-      }).select(['-password', '-email']).limit(5);
-    }
+    // Use intelligent recommendation algorithm
+    const suggestedDoctors = recommendDoctors(prediction, allDoctors);
 
-    res.json({
+    // Format response
+    const response = {
       success: true,
       prediction: {
-        disease: prediction.disease,
-        confidence: prediction.confidence,
+        primaryDisease: prediction.primaryDisease?.disease || null,
+        confidence: prediction.primaryDisease?.confidence || 0,
         message: prediction.message,
-        matchedSymptoms: prediction.matchedSymptoms,
-        suggestedSpeciality: prediction.suggestedSpeciality
+        matchedSymptoms: prediction.primaryDisease?.matchedSymptoms || [],
+        suggestedSpeciality: prediction.suggestedSpeciality,
+        alternativeSpecialities: prediction.alternativeSpecialities || [],
+        possibleDiseases: prediction.diseases?.map(d => ({
+          disease: d.disease,
+          confidence: d.confidence
+        })) || []
       },
-      suggestedDoctors
-    });
+      suggestedDoctors: suggestedDoctors.map(doc => ({
+        _id: doc._id,
+        name: doc.name,
+        speciality: doc.speciality,
+        experience: doc.experience,
+        fees: doc.fees,
+        image: doc.image,
+        about: doc.about,
+        address: doc.address,
+        recommendationScore: doc.recommendationScore,
+        matchReason: doc.speciality === prediction.suggestedSpeciality 
+          ? 'Perfect match for your condition' 
+          : prediction.alternativeSpecialities?.includes(doc.speciality)
+          ? 'Alternative specialist'
+          : 'General physician'
+      }))
+    };
+
+    res.json(response);
 
   } catch (error) {
-    console.log(error);
+    console.log('Error in predictFromSymptoms:', error);
     res.json({
       success: false,
       message: error.message

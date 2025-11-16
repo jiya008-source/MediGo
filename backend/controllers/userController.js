@@ -10,13 +10,21 @@ dotenv.config();
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body
-    if (!name || !password || !email) return res.json({ success: false, message: 'Missing Details' })
+    const { name, email, password, phone, gender, address, dob } = req.body
+    if (!name || !password || !email || !phone || !gender || !dob) return res.json({ success: false, message: 'Missing Details' })
     if (!validator.isEmail(email)) return res.json({ success: false, message: 'Enter a valid email' })
     if (password.length < 8) return res.json({ success: false, message: 'Enter a strong password' })
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
-    const user = await new userModel({ name, email, password: hashedPassword }).save()
+    const user = await new userModel({ 
+      name, 
+      email, 
+      password: hashedPassword, 
+      phone: phone || '00000000000',
+      gender: gender || 'Not Selected',
+      address: address || { line1: '', line2: '' },
+      dob: dob || 'Not Selected'
+    }).save()
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
     res.json({ success: true, token })
   } catch (error) {
